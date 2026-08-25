@@ -19,7 +19,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -53,14 +56,18 @@ import com.example.myapplication.clipboard.ClipboardViewModel
 import com.example.myapplication.clipboard.ClipboardViewModelFactory
 import com.example.myapplication.ui.theme.MyApplicationTheme
 
+import com.example.myapplication.repository.StudyRepository
+
 @Composable
 fun ContextAiRoute(
+    onOpenLibrary: () -> Unit,
+    repository: StudyRepository,
     modifier: Modifier = Modifier
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val application = context.applicationContext as android.app.Application
     val viewModel: ClipboardViewModel = viewModel(
-        factory = ClipboardViewModelFactory(application)
+        factory = ClipboardViewModelFactory(application, repository)
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val view = LocalView.current
@@ -93,6 +100,8 @@ fun ContextAiRoute(
         onEditingTextChange = viewModel::updateEditingText,
         onCopyResult = viewModel::copyText,
         onAskFollowUp = viewModel::askFollowUp,
+        onSaveStudyItem = viewModel::saveStudyItem,
+        onOpenLibrary = onOpenLibrary,
         modifier = modifier
     )
 }
@@ -112,6 +121,8 @@ fun ContextAiScreen(
     onEditingTextChange: (String) -> Unit,
     onCopyResult: (String) -> Unit,
     onAskFollowUp: (String) -> Unit,
+    onSaveStudyItem: (content: String?, type: String?) -> Unit,
+    onOpenLibrary: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -131,7 +142,18 @@ fun ContextAiScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            TextButton(onClick = onOpenLibrary) {
+                Icon(Icons.AutoMirrored.Filled.List, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Study Library")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         MonitoringCard(
             enabled = uiState.monitoringEnabled,
@@ -169,7 +191,9 @@ fun ContextAiScreen(
                 onCancelEdit = onCancelEdit,
                 onEditingTextChange = onEditingTextChange,
                 onCopy = onCopyResult,
-                onAskFollowUp = onAskFollowUp
+                onAskFollowUp = onAskFollowUp,
+                onSave = { onSaveStudyItem(null, null) },
+                onSaveFollowUp = { content -> onSaveStudyItem(content, "Follow-up") }
             )
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -457,7 +481,9 @@ private fun ActionResultCard(
     onCancelEdit: () -> Unit,
     onEditingTextChange: (String) -> Unit,
     onCopy: (String) -> Unit,
-    onAskFollowUp: (String) -> Unit
+    onAskFollowUp: (String) -> Unit,
+    onSave: () -> Unit,
+    onSaveFollowUp: (String) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -548,6 +574,14 @@ private fun ActionResultCard(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End
                     ) {
+                        if (result.title in listOf("Explain", "Summarize", "Simplified", "Study Questions", "Flashcards", "Quiz")) {
+                            TextButton(onClick = onSave) {
+                                Icon(Icons.Default.Add, contentDescription = null)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Save")
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
                         TextButton(onClick = onRegenerate) {
                             Text("Regenerate")
                         }
@@ -566,7 +600,8 @@ private fun ActionResultCard(
                         FollowUpSection(
                             followUpResult = followUpResult,
                             isGenerating = isGenerating,
-                            onAsk = onAskFollowUp
+                            onAsk = onAskFollowUp,
+                            onSave = onSaveFollowUp
                         )
                     }
                 }
@@ -579,7 +614,8 @@ private fun ActionResultCard(
 private fun FollowUpSection(
     followUpResult: String?,
     isGenerating: Boolean,
-    onAsk: (String) -> Unit
+    onAsk: (String) -> Unit,
+    onSave: (String) -> Unit
 ) {
     var text by remember { mutableStateOf("") }
     
@@ -633,6 +669,16 @@ private fun FollowUpSection(
                     modifier = Modifier.padding(12.dp),
                     style = MaterialTheme.typography.bodyMedium
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(end = 8.dp, bottom = 8.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = { onSave(followUpResult) }) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Save Result", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
             }
         }
     }
@@ -706,7 +752,9 @@ private fun ContextAiScreenPreview() {
             onCancelEdit = {},
             onEditingTextChange = {},
             onCopyResult = {},
-            onAskFollowUp = {}
+            onAskFollowUp = {},
+            onSaveStudyItem = { _, _ -> },
+            onOpenLibrary = {}
         )
     }
 }

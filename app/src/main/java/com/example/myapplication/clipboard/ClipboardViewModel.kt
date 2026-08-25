@@ -22,8 +22,12 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+import com.example.myapplication.repository.StudyRepository
+import com.example.myapplication.data.StudyItem
+
 class ClipboardViewModel(
-    application: Application
+    application: Application,
+    private val studyRepository: StudyRepository
 ) : AndroidViewModel(application) {
     private val classifier: ContentClassifier = RuleBasedContentClassifier()
     private val suggestionEngine: ActionSuggestionEngine = ActionSuggestionEngine()
@@ -151,6 +155,42 @@ class ClipboardViewModel(
 
     fun clearActionResult() {
         _uiState.update { it.copy(actionResult = null) }
+    }
+
+    fun saveStudyItem(overrideContent: String? = null, overrideType: String? = null) {
+        val state = uiState.value
+        val result = state.actionResult
+        val content = overrideContent ?: result?.content ?: return
+        val type = overrideType ?: result?.title ?: "Study Note"
+        val sourceText = state.latestClipboard ?: ""
+        
+        viewModelScope.launch {
+            val title = generateTitle(sourceText, type)
+            val item = StudyItem(
+                title = title,
+                type = type,
+                sourceText = sourceText,
+                generatedContent = content,
+                quizScore = null
+            )
+            studyRepository.insertItem(item)
+            _uiState.update { it.copy(statusMessage = "Saved to library!") }
+        }
+    }
+
+    private fun generateTitle(sourceText: String, resultType: String): String {
+        val baseTitle = if (sourceText.length <= 40) {
+            sourceText.trim().removeSuffix("?")
+        } else {
+            sourceText.take(37).trim() + "..."
+        }
+        
+        return when (resultType) {
+            "Flashcards" -> "$baseTitle — Flashcards"
+            "Quiz" -> "$baseTitle — Quiz"
+            "Study Questions" -> "$baseTitle — Questions"
+            else -> baseTitle
+        }
     }
 
     override fun onCleared() {
